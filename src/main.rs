@@ -16,7 +16,13 @@ fn main() {
         let mut stream = stream.unwrap();
         match handle_connection(&mut stream) {
             Ok(rl) => {
-                dbg!(&rl);
+                let reqline = &rl.request_line.unwrap();
+                eprintln!(
+                    "Http method: {}, path: {}, version: {}",
+                    reqline.method.to_string(),
+                    std::str::from_utf8(&reqline.path).unwrap(),
+                    reqline.version.to_string()
+                );
             }
             Err(e) => {
                 dbg!(e);

@@ -5,9 +5,9 @@ pub struct RequestWrapper {
 
 #[derive(Debug)]
 pub struct RequestLine {
-    method: HttpMethod,
-    version: HttpVersion,
-    path: Vec<u8>,
+    pub method: HttpMethod,
+    pub version: HttpVersion,
+    pub path: Vec<u8>,
 }
 
 impl RequestLine {
@@ -67,6 +67,17 @@ pub enum HttpVersion {
     Unknown,
 }
 
+impl HttpVersion {
+    pub fn to_string(&self) -> String {
+        match self {
+            HttpVersion::Http10 => String::from("1.0"),
+            HttpVersion::Http11 => String::from("1.1"),
+            HttpVersion::Http2 => String::from("2.0"),
+            _ => String::from("unknown"),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum HttpMethod {
     Patch,
@@ -78,6 +89,22 @@ pub enum HttpMethod {
     Head,
     Trace,
     Unknown,
+}
+
+impl HttpMethod {
+    pub fn to_string(&self) -> String {
+        match self {
+            HttpMethod::Patch => String::from("PATCH"),
+            HttpMethod::Options => String::from("OPTIONS"),
+            HttpMethod::Post => String::from("POST"),
+            HttpMethod::Get => String::from("GET"),
+            HttpMethod::Delete => String::from("DELETE"),
+            HttpMethod::Put => String::from("PUT"),
+            HttpMethod::Head => String::from("HEAD"),
+            HttpMethod::Trace => String::from("TRACE"),
+            _ => String::from("UNKNOWN"),
+        }
+    }
 }
 
 #[derive(Debug)]
