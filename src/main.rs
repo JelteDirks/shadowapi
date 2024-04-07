@@ -1,53 +1,73 @@
-use std::io::{BufRead, BufReader};
-use std::net::{TcpListener, TcpStream};
+use crate::http::*;
+use tokio::net::TcpListener;
 
 mod http;
-
-use crate::http::*;
 
 const MAIN_SERVER: &str = "127.0.0.1:4001";
 const SHADOW_SERVER: &str = "127.0.0.1:4002";
 const PROXY: &str = "127.0.0.1:1234";
 
-fn main() {
-    let listener = TcpListener::bind(PROXY).unwrap();
+fn main() -> Result<(), std::io::Error> {
+    // TODO: configure the amount of main and comparison threads with external
+    // configuration (JSON/cli/...)
+    let main_rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(10) /* use 10 threads for handling connections */
+        .enable_io()
+        .build()?;
+    let compare_rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2) /* use 2 threads for comparing */
+        .enable_io()
+        .build()?;
 
-    for stream in listener.incoming() {
-        let mut stream = stream.unwrap();
-        match handle_connection(&mut stream) {
-            Ok(rl) => {
-                let reqline = &rl.request_line.unwrap();
-                eprintln!(
-                    "Http method: {}, path: {}, version: {}",
-                    reqline.method.to_string(),
-                    std::str::from_utf8(&reqline.path).unwrap(),
-                    reqline.version.to_string()
-                );
-            }
-            Err(e) => {
-                dbg!(e);
-            }
+    main_rt.block_on(async {
+        let listener = TcpListener::bind(PROXY);
+        let listener = listener.await.expect("proxy is not available");
+
+        loop {
+            let (tcpstream, addr) = listener
+                .accept()
+                .await
+                .expect("could not accept incoming tcp stream");
+
+            main_rt.spawn(handle_connection(tcpstream));
+
+            eprintln!("{}", addr);
         }
-    }
+    });
+
+    Ok(())
 }
 
-fn handle_connection(stream: &mut TcpStream) -> Result<RequestWrapper, ConnectionError> {
-    let mut bufreader = BufReader::new(stream);
-    let mut content = String::new();
-    let mut request_line = None;
+async fn handle_connection(tcpstream: tokio::net::TcpStream) {
+    let mut localbuf = [0u8; 1024];
+    let mut request: Vec<u8> = Vec::new();
 
-    match bufreader.read_line(&mut content) {
-        Ok(_) => {
-            if let Ok(rl) = RequestLine::from_string(&content) {
-                request_line = Some(rl);
-            } else {
-                return Err(ConnectionError::BadRequestLine);
+    loop {
+        tcpstream
+            .readable()
+            .await
+            .expect("stream should be readable");
+
+        match tcpstream.try_read(&mut localbuf) {
+            Ok(0) => {
+                eprintln!("finished reading or zero len buffer");
+                break;
             }
-        }
-        Err(e) => {
-            dbg!(e);
+            Ok(n) => {
+                request.extend_from_slice(&localbuf[0..n]);
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                continue;
+            }
+            Err(e) => {
+                eprintln!("error reading tcp stream: {}", e);
+                break;
+            }
         }
     }
 
-    return Ok(RequestWrapper { request_line });
+    eprintln!(
+        "Finished reading request:\n{}",
+        String::from_utf8(request).unwrap()
+    );
 }
