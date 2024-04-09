@@ -40,7 +40,7 @@ fn main() -> Result<(), std::io::Error> {
 
 async fn handle_connection(tcpstream: tokio::net::TcpStream) {
     let mut localbuf = [0u8; 1024];
-    let mut request: Vec<u8> = Vec::new();
+    let mut request_builder: HttpRequestBuilder = HttpRequestBuilder::new();
 
     loop {
         tcpstream
@@ -54,7 +54,7 @@ async fn handle_connection(tcpstream: tokio::net::TcpStream) {
                 break;
             }
             Ok(n) => {
-                request.extend_from_slice(&localbuf[0..n]);
+                request_builder.insert_bytes(&localbuf[0..n]);
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 continue;
@@ -68,6 +68,6 @@ async fn handle_connection(tcpstream: tokio::net::TcpStream) {
 
     eprintln!(
         "Finished reading request:\n{}",
-        String::from_utf8(request).unwrap()
+        TryInto::<String>::try_into(request_builder).unwrap()
     );
 }
