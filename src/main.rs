@@ -1,7 +1,7 @@
-use crate::http::*;
-use tokio::net::TcpListener;
-
 mod http;
+use crate::http::*;
+
+use tokio::net::TcpListener;
 
 const MAIN_SERVER: &str = "127.0.0.1:4001";
 const SHADOW_SERVER: &str = "127.0.0.1:4002";
@@ -66,8 +66,5 @@ async fn handle_connection(tcpstream: tokio::net::TcpStream) {
         }
     }
 
-    eprintln!(
-        "Finished reading request:\n{}",
-        TryInto::<String>::try_into(request_builder).unwrap()
-    );
+    let request = request_builder.build();
 }
