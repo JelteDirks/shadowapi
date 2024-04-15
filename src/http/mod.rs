@@ -1,48 +1,70 @@
-mod parsers;
+use std::fmt::Display;
 
-use crate::http::parsers::parse_request_line;
+/* Request Line grammar can be found here:
+ * https://httpwg.org/specs/rfc9112.html#message.format
+ */
 
-pub use self::parsers::HttpError;
-pub use self::parsers::HttpVersion;
-pub use self::parsers::RequestLine;
-
-use std::io::BufRead;
-
-#[derive(Default)]
-pub struct Unparsed;
-
-pub struct HttpRequestBuilder {
-    content: Vec<u8>,
+#[derive(Debug)]
+pub enum HttpVersion {
+    Http10,
+    Http11,
+    Http2,
+    Http3, /* TODO: maybe not support this? */
 }
 
-pub struct HttpRequest {
+#[derive(Debug)]
+pub enum HttpError {
+    UnknownVersion,
 }
 
-impl HttpRequestBuilder {
-    pub fn insert_bytes(&mut self, bytes: &[u8]) {
-        self.content.extend_from_slice(bytes);
-    }
+#[derive(Debug)]
+pub enum HttpMethod {
+    Options,
+    Get,
+    Head,
+    Post,
+    Put,
+    Delete,
+    Trace,
+    Connect,
+}
 
-    pub fn new() -> HttpRequestBuilder {
-        HttpRequestBuilder {
-            content: Default::default(),
+impl std::error::Error for HttpError {}
+impl Display for HttpError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HttpError::UnknownVersion => write!(f, "Http version seems to be unknown"),
         }
     }
+}
 
-    pub fn build(self) -> Result<HttpRequest, HttpError> {
-        let lines: Vec<_> = self.content.as_slice()
-            .lines()
-            .collect();
-
-        if lines[0].is_err() {
-            return Err(HttpError::BadFormat);
+impl TryFrom<&str> for HttpVersion {
+    type Error = HttpError;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "HTTP/1.0" => Ok(HttpVersion::Http10),
+            "HTTP/1.1" => Ok(HttpVersion::Http11),
+            "HTTP/2" => Ok(HttpVersion::Http2),
+            "HTTP/3" => Ok(HttpVersion::Http3),
+            _ => Err(HttpError::UnknownVersion),
         }
+    }
+}
 
-        let rl = lines[0].as_ref().unwrap();
-        let rl = parse_request_line(rl.as_bytes())?;
+impl TryFrom<&str> for HttpMethod {
+    type Error = HttpError;
 
-        dbg!(rl);
-
-        Err(HttpError::BadFormat)
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "OPTIONS" => Ok(HttpMethod::Options),
+            "GET" => Ok(HttpMethod::Get),
+            "HEAD" => Ok(HttpMethod::Head),
+            "POST" => Ok(HttpMethod::Post),
+            "PUT" => Ok(HttpMethod::Put),
+            "DELETE" => Ok(HttpMethod::Delete),
+            "TRACE" => Ok(HttpMethod::Trace),
+            "CONNECT" => Ok(HttpMethod::Connect),
+            _ => Err(HttpError::UnknownVersion),
+        }
     }
 }
