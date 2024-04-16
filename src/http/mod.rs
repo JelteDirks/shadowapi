@@ -29,6 +29,28 @@ pub enum HttpMethod {
     Connect,
 }
 
+#[derive(Debug)]
+pub struct HttpRequest {
+    bytes: Vec<u8>,
+}
+
+impl HttpRequest {
+    // Add bytes to the http request, return whether the http request is fully
+    // parsed after this addition.
+    pub fn add_bytes(&mut self, bytes: &[u8]) -> Result<bool, HttpError> {
+        self.bytes.extend_from_slice(&bytes);
+        Ok(false)
+    }
+}
+
+impl Default for HttpRequest {
+    fn default() -> Self {
+        HttpRequest {
+            bytes: Default::default(),
+        }
+    }
+}
+
 impl std::error::Error for HttpError {}
 impl Display for HttpError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

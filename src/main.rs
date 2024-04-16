@@ -1,8 +1,8 @@
 mod http;
 
-use std::io::BufRead;
-
 use tokio::net::TcpListener;
+
+use crate::http::HttpRequest;
 
 const _MAIN_SERVER: &str = "127.0.0.1:4001";
 const _SHADOW_SERVER: &str = "127.0.0.1:4002";
@@ -36,8 +36,9 @@ fn main() -> Result<(), std::io::Error> {
 }
 
 async fn handle_connection(client_stream: tokio::net::TcpStream) {
-    let mut localbuf = [0u8; 1500];
-    let mut incoming: Vec<u8> = Vec::new();
+    const BUFSIZE: usize = 1500;
+    let mut localbuf = [0u8; BUFSIZE];
+    let mut request = HttpRequest::default();
 
     // FIX: I need to check when the request is ending, there is no nice way
     // to do this now.
@@ -55,26 +56,44 @@ async fn handle_connection(client_stream: tokio::net::TcpStream) {
             }
             Ok(n) => {
                 eprintln!("read {n} bytes from the client");
-                incoming.extend_from_slice(&localbuf[0..n]);
+                match request.add_bytes(&localbuf[0..n]) {
+                    Ok(true) => break,
+                    Ok(false) => (),
+                    Err(e) => {
+                        // TODO: problem parsing means invalid request, send
+                        // back 400 bad request and log the issue
+                        eprintln!("problem adding bytes");
+                        eprintln!("{e}");
+                    }
+                };
 
-                let c = incoming.clone();
-                c.lines()
-                    .map(|x| x.unwrap())
-                    .for_each(|val| {
-                        eprintln!("val:|{}|", val);
-                    });
-
-                eprintln!("current content:\n{}", String::from_utf8(incoming.clone()).unwrap());
-
-                // TODO: parse here. should parse untill http request is
-                // completely read, use some sort of type state pattern here
-                // maybe? it all depends on the content AS it is parsed...
+                if n < BUFSIZE {
+                    // FIX: use this for testing now. later, let the http
+                    // request parser deal with deciding if finished
+                    break;
+                }
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 continue;
             }
             Err(e) => {
                 eprintln!("error reading tcp stream: {}", e);
+                break;
+            }
+        }
+    }
+
+    loop {
+        match client_stream.try_write(b"HTTP/1.1 200 OK\n") {
+            Ok(n) => {
+                eprintln!("written {n} bytes to client");
+                break;
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                continue;
+            }
+            Err(e) => {
+                eprintln!("{e}");
                 break;
             }
         }
