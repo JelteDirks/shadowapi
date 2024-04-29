@@ -14,6 +14,7 @@ pub enum HttpVersion {
 
 #[derive(Debug)]
 pub enum HttpError {
+    BadFormat,
     UnknownVersion,
 }
 
@@ -32,6 +33,9 @@ pub enum HttpMethod {
 #[derive(Debug)]
 pub struct HttpRequest {
     bytes: Vec<u8>,
+    cursor: usize,
+    method: Option<HttpMethod>,
+    target: Option<String>,
 }
 
 impl HttpRequest {
@@ -39,6 +43,55 @@ impl HttpRequest {
     // parsed after this addition.
     pub fn add_bytes(&mut self, bytes: &[u8]) -> Result<bool, HttpError> {
         self.bytes.extend_from_slice(&bytes);
+
+        // When method is not found yet, it should be explored
+        if self.method.is_none() {
+            if self.bytes.len() > 1 {
+                let method = match self.bytes[0] {
+                    0x43 => Ok(HttpMethod::Connect),
+                    0x44 => Ok(HttpMethod::Delete),
+                    0x47 => Ok(HttpMethod::Get),
+                    0x48 => Ok(HttpMethod::Head),
+                    0x4F => Ok(HttpMethod::Options),
+                    0x50 => match self.bytes[1] {
+                        0x4F => Ok(HttpMethod::Post),
+                        0x55 => Ok(HttpMethod::Put),
+                        _ => Err(HttpError::BadFormat),
+                    },
+                    0x54 => Ok(HttpMethod::Trace),
+                    _ => Err(HttpError::BadFormat),
+                }?;
+
+                let sp = self.bytes.iter().position(|&byte| byte == 0x20);
+
+                if sp.is_some() {
+                    self.cursor = sp.unwrap() + 1;
+                }
+
+                self.method = Some(method);
+            }
+        }
+
+        if self.method.is_some() && self.target.is_none() {
+            // TODO: needs some edge cases with better error handling
+            let next_sp = self.bytes[self.cursor..]
+                .iter()
+                .position(|&byte| byte == 0x20);
+
+            if let Some(sp) = next_sp {
+                let range = self.cursor..self.cursor + sp;
+                let target = std::str::from_utf8(&self.bytes[range]);
+
+                if let Ok(t) = target {
+                    self.target = Some(t.to_owned());
+                } else {
+                    return Err(HttpError::BadFormat);
+                }
+
+                self.cursor = self.cursor + sp;
+            }
+        }
+
         Ok(false)
     }
 }
@@ -47,6 +100,9 @@ impl Default for HttpRequest {
     fn default() -> Self {
         HttpRequest {
             bytes: Default::default(),
+            cursor: Default::default(),
+            method: Default::default(),
+            target: Default::default(),
         }
     }
 }
@@ -56,6 +112,7 @@ impl Display for HttpError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             HttpError::UnknownVersion => write!(f, "Http version seems to be unknown"),
+            HttpError::BadFormat => write!(f, "Http seems to be wrongly formatted"),
         }
     }
 }
