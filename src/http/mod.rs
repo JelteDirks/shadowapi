@@ -1,6 +1,4 @@
-use std::{fmt::Display, io::BufRead};
-
-use tokio::io::AsyncBufReadExt;
+use std::fmt::Display;
 
 /* Request Line grammar can be found here:
  * https://httpwg.org/specs/rfc9112.html#message.format
@@ -100,8 +98,6 @@ impl HttpRequest {
             }
         }
 
-        dbg!(&self.cursor);
-
         if self.target.is_some() && self.version.is_none() {
             let next_cr = self.bytes[self.cursor..]
                 .iter()
@@ -115,8 +111,6 @@ impl HttpRequest {
 
             self.cursor = self.cursor + next_cr + 1;
         }
-
-        dbg!(std::str::from_utf8(&self.bytes[self.cursor..]).unwrap());
 
         Ok(false)
     }

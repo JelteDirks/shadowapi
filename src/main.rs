@@ -43,11 +43,19 @@ async fn handle_connection(client_stream: tokio::net::TcpStream) {
     // FIX: I need to check when the request is ending, there is no nice way
     // to do this now.
 
+    let mut has_started = false;
+    let mut t_start: std::time::Instant = std::time::Instant::now();
+
     loop {
         client_stream
             .readable()
             .await
             .expect("stream should be readable");
+
+        if !has_started {
+            t_start = std::time::Instant::now();
+            has_started = true;
+        }
 
         match client_stream.try_read(&mut localbuf) {
             Ok(0) => {
@@ -82,6 +90,9 @@ async fn handle_connection(client_stream: tokio::net::TcpStream) {
             }
         }
     }
+
+    let dur = std::time::Instant::now() - t_start;
+    eprintln!("decoding took: {} µs", dur.as_micros());
 
     loop {
         match client_stream.try_write(b"HTTP/1.1 200 OK\n") {
