@@ -51,6 +51,9 @@ impl HttpRequest {
         // e.g.: iterateover the bytes and find the spaces, when spaces are
         // found, do something with the parts in between.
 
+        // NOTE: many assumptions are made here which will probably not hold
+        // in a valid environment. Should add proper error handling.
+
         if self.method.is_none() {
             if self.bytes.len() > 1 {
                 let method = match self.bytes[0] {
@@ -93,29 +96,27 @@ impl HttpRequest {
                     return Err(HttpError::BadFormat);
                 }
 
-                self.cursor = self.cursor + sp;
+                self.cursor = self.cursor + sp + 1;
             }
         }
+
+        dbg!(&self.cursor);
 
         if self.target.is_some() && self.version.is_none() {
-            let lines = self
-                .bytes
-                .split(|&byte| byte == 0x0A)
-                .take(1)
-                .flat_map(|first_line| first_line.split(|&byte| byte == 0x20).skip(2).take(1))
-                .map(|version| version)
-                .collect::<Vec<_>>();
+            let next_cr = self.bytes[self.cursor..]
+                .iter()
+                .position(|&byte| byte == 0x0A)
+                .expect("request line should fit entirely when testing");
 
-            if lines.len() == 0 {
-                return Err(HttpError::BadFormat);
-            }
-
-            let version: HttpVersion = lines[0].try_into()?;
+            let range = self.cursor..self.cursor + next_cr;
+            let version: HttpVersion = self.bytes[range].try_into()?;
 
             self.version = Some(version);
+
+            self.cursor = self.cursor + next_cr + 1;
         }
 
-        dbg!(&self);
+        dbg!(std::str::from_utf8(&self.bytes[self.cursor..]).unwrap());
 
         Ok(false)
     }
