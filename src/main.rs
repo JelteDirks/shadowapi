@@ -2,7 +2,8 @@ mod http;
 
 use tokio::net::TcpListener;
 
-use crate::http::HttpRequest;
+use crate::http::DecodedHttpRequest;
+use crate::http::RawHttpRequest;
 
 const _MAIN_SERVER: &str = "127.0.0.1:4001";
 const _SHADOW_SERVER: &str = "127.0.0.1:4002";
@@ -38,7 +39,7 @@ fn main() -> Result<(), std::io::Error> {
 async fn handle_connection(client_stream: tokio::net::TcpStream) {
     const BUFSIZE: usize = 1500;
     let mut localbuf = [0u8; BUFSIZE];
-    let mut request = HttpRequest::default();
+    let mut request = RawHttpRequest::default();
 
     // FIX: I need to check when the request is ending, there is no nice way
     // to do this now.
@@ -64,7 +65,7 @@ async fn handle_connection(client_stream: tokio::net::TcpStream) {
             }
             Ok(n) => {
                 eprintln!("read {n} bytes from the client");
-                match request.add_bytes(&localbuf[0..n]) {
+                match request.add_bytes(&localbuf[0..n], n) {
                     Ok(true) => break,
                     Ok(false) => (),
                     Err(e) => {
@@ -76,8 +77,6 @@ async fn handle_connection(client_stream: tokio::net::TcpStream) {
                 };
 
                 if n < BUFSIZE {
-                    // FIX: use this for testing now. later, let the http
-                    // request parser deal with deciding if finished
                     break;
                 }
             }
