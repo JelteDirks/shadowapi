@@ -2,8 +2,7 @@ mod http;
 
 use tokio::net::TcpListener;
 
-use crate::http::DecodedHttpRequest;
-use crate::http::RawHttpRequest;
+use crate::http::request::RawHttpRequest;
 
 const _MAIN_SERVER: &str = "127.0.0.1:4001";
 const _SHADOW_SERVER: &str = "127.0.0.1:4002";
@@ -72,7 +71,7 @@ async fn handle_connection(client_stream: tokio::net::TcpStream) {
         }
     }
 
-    let mut t_start: std::time::Instant = std::time::Instant::now();
+    let t_start: std::time::Instant = std::time::Instant::now();
     let decoded = request.decode().expect("request was not decodable");
     let dur = std::time::Instant::now() - t_start;
     eprintln!("decoding took: {} µs", dur.as_micros());
