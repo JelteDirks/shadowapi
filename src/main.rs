@@ -44,19 +44,11 @@ async fn handle_connection(client_stream: tokio::net::TcpStream) {
     // FIX: I need to check when the request is ending, there is no nice way
     // to do this now.
 
-    let mut has_started = false;
-    let mut t_start: std::time::Instant = std::time::Instant::now();
-
     loop {
         client_stream
             .readable()
             .await
             .expect("stream should be readable");
-
-        if !has_started {
-            t_start = std::time::Instant::now();
-            has_started = true;
-        }
 
         match client_stream.try_read(&mut localbuf) {
             Ok(0) => {
@@ -65,17 +57,7 @@ async fn handle_connection(client_stream: tokio::net::TcpStream) {
             }
             Ok(n) => {
                 eprintln!("read {n} bytes from the client");
-                match request.add_bytes(&localbuf[0..n], n) {
-                    Ok(true) => break,
-                    Ok(false) => (),
-                    Err(e) => {
-                        // TODO: problem parsing means invalid request, send
-                        // back 400 bad request and log the issue
-                        eprintln!("problem adding bytes");
-                        eprintln!("{e}");
-                    }
-                };
-
+                request.add_bytes(&localbuf[0..n], n);
                 if n < BUFSIZE {
                     break;
                 }
@@ -90,8 +72,11 @@ async fn handle_connection(client_stream: tokio::net::TcpStream) {
         }
     }
 
+    let mut t_start: std::time::Instant = std::time::Instant::now();
+    let decoded = request.decode().expect("request was not decodable");
     let dur = std::time::Instant::now() - t_start;
     eprintln!("decoding took: {} µs", dur.as_micros());
+    eprintln!("request: {:?}", decoded);
 
     loop {
         match client_stream.try_write(b"HTTP/1.1 200 OK\n") {

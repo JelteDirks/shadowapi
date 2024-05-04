@@ -31,11 +31,9 @@ pub struct DecodedHttpRequest {
 impl RawHttpRequest {
     // Add bytes to the http request, return whether the http request is fully
     // parsed after this addition.
-    pub fn add_bytes(&mut self, bytes: &[u8], n: usize) -> Result<bool, HttpError> {
+    pub fn add_bytes(&mut self, bytes: &[u8], n: usize) {
         self.bytes.extend_from_slice(&bytes);
         self.size = self.size + n;
-
-        Ok(true)
     }
 
     pub fn decode(self) -> Result<DecodedHttpRequest, HttpError> {
@@ -229,11 +227,7 @@ mod test {
         let mut rq: RawHttpRequest = RawHttpRequest::default();
         let payload =
             "GET /api HTTP/1.1\nHost: localhost:1234\nUser-Agent: curl/8.4.0\nAccept: */*\n\n";
-
-        let _ = rq
-            .add_bytes(payload.as_bytes(), payload.len())
-            .expect("adding bytes should always work");
-
+        let _ = rq.add_bytes(payload.as_bytes(), payload.len());
         let rq = rq.decode().expect("should be decodable");
         let method: HttpMethod = rq.method;
         let asstr: &str = method.into();
@@ -245,15 +239,20 @@ mod test {
         let mut rq: RawHttpRequest = RawHttpRequest::default();
         let payload =
             "GET /api HTTP/1.1\nHost: localhost:1234\nUser-Agent: curl/8.4.0\nAccept: */*\n\n";
-
-        let _ = rq
-            .add_bytes(payload.as_bytes(), payload.len())
-            .expect("adding bytes should always work");
-
+        let _ = rq.add_bytes(payload.as_bytes(), payload.len());
         let rq = rq.decode().expect("should be decodable");
-
         let version: HttpVersion = rq.version;
         let asstr: &str = version.into();
         assert_eq!(asstr, "HTTP/1.1");
+    }
+
+    #[test]
+    fn small_request_target() {
+        let mut rq: RawHttpRequest = RawHttpRequest::default();
+        let payload =
+            "GET /api HTTP/1.1\nHost: localhost:1234\nUser-Agent: curl/8.4.0\nAccept: */*\n\n";
+        let _ = rq.add_bytes(payload.as_bytes(), payload.len());
+        let rq = rq.decode().expect("should be decodable");
+        assert_eq!(rq.target, "/api");
     }
 }
