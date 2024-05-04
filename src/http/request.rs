@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::http::error::*;
-use crate::http::partials::*;
+use crate::http::error::HttpError;
+use crate::http::partials::{HttpMethod, HttpVersion};
 
 /* Request Line grammar can be found here:
  * https://httpwg.org/specs/rfc9112.html#message.format
@@ -15,28 +15,19 @@ pub struct DecodedHttpRequest {
     version: HttpVersion,
     headers: HashMap<String, String>,
 }
-#[derive(Debug)]
 
+#[derive(Debug, Default)]
 pub struct RawHttpRequest {
     bytes: Vec<u8>,
     size: usize,
-}
-
-impl Default for RawHttpRequest {
-    fn default() -> Self {
-        RawHttpRequest {
-            bytes: Default::default(),
-            size: Default::default(),
-        }
-    }
 }
 
 impl RawHttpRequest {
     // Add bytes to the http request, return whether the http request is fully
     // parsed after this addition.
     pub fn add_bytes(&mut self, bytes: &[u8], n: usize) {
-        self.bytes.extend_from_slice(&bytes);
-        self.size = self.size + n;
+        self.bytes.extend_from_slice(bytes);
+        self.size += n;
     }
 
     pub fn decode(self) -> Result<DecodedHttpRequest, HttpError> {
@@ -50,7 +41,6 @@ impl RawHttpRequest {
         let mut cursor: usize = 0;
         let method: HttpMethod;
         let target: String;
-        let version: HttpVersion;
 
         if self.bytes.len() > 1 {
             method = match self.bytes[0] {
@@ -68,10 +58,8 @@ impl RawHttpRequest {
                 _ => Err(HttpError::BadFormat),
             }?;
 
-            let sp = self.bytes.iter().position(|&byte| byte == 0x20);
-
-            if sp.is_some() {
-                cursor = sp.unwrap() + 1;
+            if let Some(sp) = self.bytes.iter().position(|&byte| byte == 0x20) {
+                cursor = sp + 1;
             }
         } else {
             return Err(HttpError::BadFormat);
@@ -96,7 +84,7 @@ impl RawHttpRequest {
             .expect("request line should fit entirely when testing");
 
         let range = cursor..cursor + next_cr;
-        version = self.bytes[range].try_into()?;
+        let version: HttpVersion = self.bytes[range].try_into()?;
 
         Ok(DecodedHttpRequest {
             size: self.size,

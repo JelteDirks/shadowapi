@@ -7,6 +7,7 @@ pub enum HttpError {
 }
 
 impl std::error::Error for HttpError {}
+
 impl Display for HttpError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
