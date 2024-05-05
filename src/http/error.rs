@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::fmt::Display;
 
 #[derive(Debug)]
@@ -16,3 +17,26 @@ impl Display for HttpError {
         }
     }
 }
+
+#[derive(Debug)]
+pub enum ServerError {
+    Unresponsive(String, Box<dyn Error + Send>),
+    ServerWriteError(String, Box<dyn Error + Send>),
+    ServerReadError(String, Box<dyn Error + Send>),
+}
+impl std::fmt::Display for ServerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ServerReadError(target, err) => {
+                write!(f, "server [{target}] error while reading, reason: {err}")
+            }
+            Self::ServerWriteError(target, err) => {
+                write!(f, "server [{target}] error while writing, reason: {err}")
+            }
+            Self::Unresponsive(target, err) => {
+                write!(f, "server [{target}] is unresponsive, reason: {err}")
+            }
+        }
+    }
+}
+impl std::error::Error for ServerError {}

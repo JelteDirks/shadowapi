@@ -4,8 +4,11 @@ mod util;
 // NOTE: Maybe in the future, replace 'home made' logging with a crate that has
 // better configurable logging. Might be nice.
 
+use std::error::Error;
+
 use chrono::Utc;
 
+use http::{error::ServerError, response::RawHttpResponse};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -80,34 +83,43 @@ async fn handle_connection(mut client_stream: tokio::net::TcpStream) {
         }
     }
 
-    let main_server = TcpStream::connect(_MAIN_SERVER).await;
+    let main_response = request_server(_MAIN_SERVER, &request).await;
+
+    if let Err(e) = main_response {
+        log::timed_msg(format!("error with main: {e}"), Utc::now());
+        let response = match e {
+            ServerError::Unresponsive(_, _) => "HTTP/1.1 503 Service Unavailable",
+            ServerError::ServerWriteError(_, _) => "HTTP/1.1 500 Internal Server Error",
+            ServerError::ServerReadError(_, _) => "HTTP/1.1 500 Internal Server Error",
+        };
+        client_stream
+            .write_all(response.as_bytes())
+            .await
+            .expect("expect client to be okay for now");
+    } else {
+        client_stream
+            .write_all(&main_response.unwrap().bytes)
+            .await
+            .expect("expect client to be okay for now");
+    }
+
+    let _ = client_stream.shutdown();
+
+    log::timed_msg(format!("handled client request"), Utc::now());
+}
+
+async fn request_server<T>(
+    target: T,
+    request: &RawHttpRequest,
+) -> Result<RawHttpResponse, ServerError>
+where
+    T: Into<String>,
+{
+    let target = String::from(target.into());
+    let main_server = TcpStream::connect(target.clone()).await;
 
     if let Err(e) = main_server {
-        log::timed_msg(
-            format!("could not connect to main server, aborting: {e}"),
-            Utc::now(),
-        );
-        let res = client_stream
-            .write_all(b"HTTP/1.1 503 Service Unavailable\n")
-            .await;
-        if let Err(e) = res {
-            log::timed_msg(format!("failed to write error to client: {e}"), Utc::now());
-            log::timed_msg(
-                format!("the client might not know what happend now"),
-                Utc::now(),
-            );
-        }
-        log::timed_msg(format!("trying to shut down the connection"), Utc::now());
-        let res = client_stream.shutdown().await;
-        if let Err(e) = res {
-            log::timed_msg(
-                format!("could not shut down gracefully, dropping connection: {e}"),
-                Utc::now(),
-            );
-        } else {
-            log::timed_msg(format!("connection is shut down"), Utc::now());
-        }
-        return;
+        return Err(ServerError::Unresponsive(target, Box::new(e)));
     }
 
     let mut main_server = main_server.unwrap();
@@ -115,82 +127,16 @@ async fn handle_connection(mut client_stream: tokio::net::TcpStream) {
     let res = main_server.write_all(request.bytes.as_slice()).await;
 
     if let Err(e) = res {
-        log::timed_msg(
-            format!("problem forwarding request to main server: {e}"),
-            Utc::now(),
-        );
-
-        log::timed_msg(format!("trying to shut down gracefully"), Utc::now());
-        let res = client_stream.shutdown().await;
-        if let Err(e) = res {
-            log::timed_msg(
-                format!("could not shut down gracefully, dropping connection: {e}"),
-                Utc::now(),
-            );
-        } else {
-            log::timed_msg(format!("connection is shut down"), Utc::now());
-        }
-        return;
+        return Err(ServerError::ServerWriteError(target, Box::new(e)));
     }
 
     let mut response: Vec<_> = Vec::new();
 
     let res = main_server.read_buf(&mut response).await;
-    if let Err(e) = res {
-        log::timed_msg(
-            format!("problem reading response from main server: {e}"),
-            Utc::now(),
-        );
-        let res = client_stream.write_all(b"HTTP/1.1 500 \n").await;
-        if let Err(e) = res {
-            log::timed_msg(format!("failed to write error to client: {e}"), Utc::now());
-            log::timed_msg(
-                format!("the client might not know what happend now"),
-                Utc::now(),
-            );
-        }
 
-        log::timed_msg(format!("trying to shut down gracefully"), Utc::now());
-        let res = client_stream.shutdown().await;
-        if let Err(e) = res {
-            log::timed_msg(
-                format!("could not shut down gracefully, dropping connection: {e}"),
-                Utc::now(),
-            );
-        } else {
-            log::timed_msg(format!("connection is shut down"), Utc::now());
-        }
-        return;
+    if let Err(e) = res {
+        return Err(ServerError::ServerReadError(target, Box::new(e)));
     }
 
-    let res = client_stream.write_all(&response).await;
-    if let Err(e) = res {
-        log::timed_msg(format!("problem responding to client: {e}"), Utc::now());
-        log::timed_msg(
-            format!("aborting now, client is not informed..."),
-            Utc::now(),
-        );
-        let res = client_stream.shutdown().await;
-        if let Err(e) = res {
-            log::timed_msg(
-                format!("could not shut down gracefully, dropping connection: {e}"),
-                Utc::now(),
-            );
-        } else {
-            log::timed_msg(format!("connection is shut down"), Utc::now());
-        }
-        return;
-    }
-
-    let res = client_stream.shutdown().await;
-    if let Err(e) = res {
-        log::timed_msg(
-            format!("could not shut down gracefully, dropping connection: {e}"),
-            Utc::now(),
-        );
-    } else {
-        log::timed_msg(format!("connection is shut down"), Utc::now());
-    }
-
-    log::timed_msg(format!("handled client request"), Utc::now());
+    return Ok(RawHttpResponse::from(response));
 }
