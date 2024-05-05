@@ -7,7 +7,7 @@ mod util;
 use chrono::Utc;
 
 use tokio::{
-    io::AsyncWriteExt,
+    io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
 
@@ -119,23 +119,29 @@ async fn handle_connection(mut client_stream: tokio::net::TcpStream) {
             format!("problem forwarding request to main server: {e}"),
             Utc::now(),
         );
+
+        log::timed_msg(format!("trying to shut down gracefully"), Utc::now());
+        let res = client_stream.shutdown().await;
+        if let Err(e) = res {
+            log::timed_msg(
+                format!("could not shut down gracefully, dropping connection: {e}"),
+                Utc::now(),
+            );
+        } else {
+            log::timed_msg(format!("connection is shut down"), Utc::now());
+        }
+        return;
     }
 
-    loop {
-        match client_stream.try_write(b"HTTP/1.1 200 OK\n") {
-            Ok(n) => {
-                log::timed_msg(format!("written {n} bytes to client"), Utc::now());
-                break;
-            }
-            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                continue;
-            }
-            Err(e) => {
-                eprintln!("{e}");
-                break;
-            }
-        }
-    }
+    let mut response: Vec<_> = Vec::new();
+
+    let r = main_server.read_buf(&mut response).await;
+    // TODO: check r and handle errors
+
+    let r = client_stream.write_all(&response).await;
+    // TODO: check r and handle errors
+
+    let _ = client_stream.shutdown().await;
 
     log::timed_msg(format!("handled client request"), Utc::now());
 }
