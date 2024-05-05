@@ -1,6 +1,9 @@
 mod http;
 
-use tokio::net::TcpListener;
+use tokio::{
+    io::AsyncWriteExt,
+    net::{TcpListener, TcpStream},
+};
 
 use crate::http::request::RawHttpRequest;
 
@@ -28,14 +31,14 @@ fn main() -> Result<(), std::io::Error> {
 
             main_rt.spawn(handle_connection(tcpstream));
 
-            eprintln!("{}", addr);
+            eprintln!("client connected: {}", addr);
         }
     });
 
     Ok(())
 }
 
-async fn handle_connection(client_stream: tokio::net::TcpStream) {
+async fn handle_connection(mut client_stream: tokio::net::TcpStream) {
     const BUFSIZE: usize = 1500;
     let mut localbuf = [0u8; BUFSIZE];
     let mut request = RawHttpRequest::default();
@@ -71,11 +74,34 @@ async fn handle_connection(client_stream: tokio::net::TcpStream) {
         }
     }
 
-    let t_start: std::time::Instant = std::time::Instant::now();
-    let decoded = request.decode().expect("request was not decodable");
-    let dur = std::time::Instant::now() - t_start;
-    eprintln!("decoding took: {} µs", dur.as_micros());
-    eprintln!("request: {:?}", decoded);
+    let main_server = TcpStream::connect(_MAIN_SERVER).await;
+
+    if let Err(e) = main_server {
+        eprintln!("could not connect to main server, aborting: {e}");
+        let res = client_stream
+            .write_all(b"HTTP/1.1 503 Service Unavailable\n")
+            .await;
+        if let Err(e) = res {
+            eprintln!("failed to write error to client: {e}");
+            eprintln!("the client might not know what happend now");
+        }
+        eprintln!("trying to shut down the connection");
+        let res = client_stream.shutdown().await;
+        if let Err(e) = res {
+            eprintln!("could not shut down gracefully, dropping connection: {e}");
+        } else {
+            eprintln!("connection is shut down");
+        }
+        return;
+    }
+
+    let mut main_server = main_server.unwrap();
+
+    let res = main_server.write_all(request.bytes.as_slice()).await;
+
+    if let Err(e) = res {
+        eprintln!("problem forwarding request to main server: {e}");
+    }
 
     loop {
         match client_stream.try_write(b"HTTP/1.1 200 OK\n") {

@@ -18,8 +18,8 @@ pub struct DecodedHttpRequest {
 
 #[derive(Debug, Default)]
 pub struct RawHttpRequest {
-    bytes: Vec<u8>,
-    size: usize,
+    pub bytes: Vec<u8>,
+    pub size: usize,
 }
 
 impl RawHttpRequest {
