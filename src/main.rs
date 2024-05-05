@@ -135,13 +135,62 @@ async fn handle_connection(mut client_stream: tokio::net::TcpStream) {
 
     let mut response: Vec<_> = Vec::new();
 
-    let r = main_server.read_buf(&mut response).await;
-    // TODO: check r and handle errors
+    let res = main_server.read_buf(&mut response).await;
+    if let Err(e) = res {
+        log::timed_msg(
+            format!("problem reading response from main server: {e}"),
+            Utc::now(),
+        );
+        let res = client_stream.write_all(b"HTTP/1.1 500 \n").await;
+        if let Err(e) = res {
+            log::timed_msg(format!("failed to write error to client: {e}"), Utc::now());
+            log::timed_msg(
+                format!("the client might not know what happend now"),
+                Utc::now(),
+            );
+        }
 
-    let r = client_stream.write_all(&response).await;
-    // TODO: check r and handle errors
+        log::timed_msg(format!("trying to shut down gracefully"), Utc::now());
+        let res = client_stream.shutdown().await;
+        if let Err(e) = res {
+            log::timed_msg(
+                format!("could not shut down gracefully, dropping connection: {e}"),
+                Utc::now(),
+            );
+        } else {
+            log::timed_msg(format!("connection is shut down"), Utc::now());
+        }
+        return;
+    }
 
-    let _ = client_stream.shutdown().await;
+    let res = client_stream.write_all(&response).await;
+    if let Err(e) = res {
+        log::timed_msg(format!("problem responding to client: {e}"), Utc::now());
+        log::timed_msg(
+            format!("aborting now, client is not informed..."),
+            Utc::now(),
+        );
+        let res = client_stream.shutdown().await;
+        if let Err(e) = res {
+            log::timed_msg(
+                format!("could not shut down gracefully, dropping connection: {e}"),
+                Utc::now(),
+            );
+        } else {
+            log::timed_msg(format!("connection is shut down"), Utc::now());
+        }
+        return;
+    }
+
+    let res = client_stream.shutdown().await;
+    if let Err(e) = res {
+        log::timed_msg(
+            format!("could not shut down gracefully, dropping connection: {e}"),
+            Utc::now(),
+        );
+    } else {
+        log::timed_msg(format!("connection is shut down"), Utc::now());
+    }
 
     log::timed_msg(format!("handled client request"), Utc::now());
 }
