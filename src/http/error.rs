@@ -20,9 +20,9 @@ impl Display for HttpError {
 
 #[derive(Debug)]
 pub enum ServerError {
-    Unresponsive(String, Box<dyn Error + Send>),
-    ServerWriteError(String, Box<dyn Error + Send>),
-    ServerReadError(String, Box<dyn Error + Send>),
+    Unresponsive(String, Box<dyn Error + Send + Sync>),
+    ServerWriteError(String, Box<dyn Error + Send + Sync>),
+    ServerReadError(String, Box<dyn Error + Send + Sync>),
 }
 impl std::fmt::Display for ServerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

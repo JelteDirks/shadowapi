@@ -4,7 +4,7 @@ mod util;
 // NOTE: Maybe in the future, replace 'home made' logging with a crate that has
 // better configurable logging. Might be nice.
 
-use std::error::Error;
+use std::time::Duration;
 
 use chrono::Utc;
 
@@ -12,6 +12,7 @@ use http::{error::ServerError, response::RawHttpResponse};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
+    runtime::Runtime,
 };
 
 use crate::{http::request::RawHttpRequest, util::log};
@@ -26,7 +27,27 @@ fn main() -> Result<(), std::io::Error> {
     let main_rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(10) /* use 10 threads for handling connections */
         .enable_io()
+        .enable_time()
         .build()?;
+
+    let parsing_rt: Runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_io()
+        .enable_time()
+        .build()?;
+
+    let (mut tx, mut rx) = tokio::sync::mpsc::channel::<RawHttpRequest>(10_000);
+
+    parsing_rt.spawn(async move {
+        loop {
+            let v = rx.recv().await;
+
+            if let Some(request) = v {
+                tokio::time::sleep(Duration::from_secs(3)).await;
+                dbg!("got request");
+            }
+        }
+    });
 
     main_rt.block_on(async {
         let listener = TcpListener::bind(PROXY);
@@ -38,7 +59,33 @@ fn main() -> Result<(), std::io::Error> {
                 .await
                 .expect("could not accept incoming tcp stream");
 
-            main_rt.spawn(handle_connection(tcpstream));
+            let ltx = tx.clone();
+
+            main_rt.spawn(async move {
+                let result = handle_connection(tcpstream).await;
+
+                if let Err(e) = result {
+                    log::timed_msg(format!("issue in main server: {}", e), Utc::now());
+                    return;
+                }
+
+                let (req, res) = result.unwrap();
+
+                let result = request_server(_SHADOW_SERVER, &req).await;
+
+                if let Err(e) = result {
+                    log::timed_msg(format!("issue in shadow server: {}", e), Utc::now());
+                    return;
+                }
+
+                // TODO: maybe investigate if this makes sure that there is
+                // a possibility to reduce the amount of bytes that might have
+                // be moved. I don't know if moving an entire struct incurs
+                // more overhead than just moving a box pointing to the struct
+                let _ = ltx.send(req).await;
+
+                dbg!("debugging call");
+            });
 
             log::timed_msg(format!("client connected: {}", addr), Utc::now());
         }
@@ -47,7 +94,9 @@ fn main() -> Result<(), std::io::Error> {
     Ok(())
 }
 
-async fn handle_connection(mut client_stream: tokio::net::TcpStream) {
+async fn handle_connection(
+    mut client_stream: tokio::net::TcpStream,
+) -> Result<(RawHttpRequest, RawHttpResponse), ServerError> {
     const BUFSIZE: usize = 1500;
     let mut localbuf = [0u8; BUFSIZE];
     let mut request = RawHttpRequest::default();
@@ -89,23 +138,34 @@ async fn handle_connection(mut client_stream: tokio::net::TcpStream) {
         log::timed_msg(format!("error with main: {e}"), Utc::now());
         let response = match e {
             ServerError::Unresponsive(_, _) => "HTTP/1.1 503 Service Unavailable",
-            ServerError::ServerWriteError(_, _) => "HTTP/1.1 500 Internal Server Error",
-            ServerError::ServerReadError(_, _) => "HTTP/1.1 500 Internal Server Error",
+            ServerError::ServerWriteError(_, _) | ServerError::ServerReadError(_, _) => {
+                "HTTP/1.1 500 Internal Server Error"
+            }
         };
         client_stream
             .write_all(response.as_bytes())
             .await
             .expect("expect client to be okay for now");
+
+        return Err(e);
     } else {
         client_stream
-            .write_all(&main_response.unwrap().bytes)
+            .write_all(&main_response.as_ref().unwrap().bytes)
             .await
             .expect("expect client to be okay for now");
     }
 
     let _ = client_stream.shutdown();
-
     log::timed_msg(format!("handled client request"), Utc::now());
+
+    // NOTE: the fun part starts here
+
+    // TODO: before the shadow server is called and handeled, maybe already
+    // save some information about the request and response from main, maybe
+    // to a database or somewhere that can generate statistics and comparison
+    // results later.
+
+    return Ok((request, main_response.unwrap()));
 }
 
 async fn request_server<T>(
