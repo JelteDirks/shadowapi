@@ -2,9 +2,9 @@ mod http;
 mod util;
 
 // NOTE: Maybe in the future, replace 'home made' logging with a crate that has
-// better configurable logging. Might be nice.
+// better configurable logging. Might be nice. Nice crate called 'tracing'.
 
-use std::time::Duration;
+// https://httpwg.org/specs/rfc9112.html#message.format
 
 use chrono::Utc;
 
@@ -27,25 +27,60 @@ fn main() -> Result<(), std::io::Error> {
     let main_rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(10) /* use 10 threads for handling connections */
         .enable_io()
-        .enable_time()
         .build()?;
 
     let parsing_rt: Runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .enable_io()
-        .enable_time()
         .build()?;
 
-    let (mut tx, mut rx) = tokio::sync::mpsc::channel::<RawHttpRequest>(10_000);
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<(RawHttpRequest, RawHttpResponse)>(1_000);
 
     parsing_rt.spawn(async move {
         loop {
             let v = rx.recv().await;
 
-            if let Some(request) = v {
-                tokio::time::sleep(Duration::from_secs(3)).await;
-                dbg!("got request");
+            if let None = v {
+                log::timed_msg(format!("received None from channel"), Utc::now());
+                continue;
             }
+
+            tokio::spawn(async move {
+                let (raw_request, main_response) = v.unwrap();
+                let shadow_response = request_server(_SHADOW_SERVER, &raw_request).await;
+
+                if let Err(e) = shadow_response {
+                    log::timed_msg(format!("error parsing shadow response: {}", e), Utc::now());
+                    return;
+                }
+
+                let shadow_response = shadow_response.unwrap();
+
+                let parsed_request = raw_request.decode();
+                if let Err(e) = parsed_request {
+                    log::timed_msg(format!("error parsing request: {}", e), Utc::now());
+                } else {
+                    // TODO: write the result somewhere?
+                }
+
+                let main_parsed = main_response.decode();
+                if let Err(e) = main_parsed {
+                    log::timed_msg(format!("error parsing main response: {}", e), Utc::now());
+                } else {
+                    // TODO: write the result somewhere?
+                }
+
+                let shadow_parsed = shadow_response.decode();
+                if let Err(e) = main_parsed {
+                    log::timed_msg(format!("error parsing shadow response: {}", e), Utc::now());
+                } else {
+                    // TODO: write the result somewhere?
+                }
+
+                if main_parsed.is_ok() && shadow_parsed.is_ok() {
+                    // TODO: compare the results and store
+                }
+            });
         }
     });
 
@@ -71,20 +106,22 @@ fn main() -> Result<(), std::io::Error> {
 
                 let (req, res) = result.unwrap();
 
-                let result = request_server(_SHADOW_SERVER, &req).await;
-
-                if let Err(e) = result {
-                    log::timed_msg(format!("issue in shadow server: {}", e), Utc::now());
-                    return;
-                }
-
                 // TODO: maybe investigate if this makes sure that there is
                 // a possibility to reduce the amount of bytes that might have
                 // be moved. I don't know if moving an entire struct incurs
                 // more overhead than just moving a box pointing to the struct
-                let _ = ltx.send(req).await;
+                let sent = ltx.send((req, res)).await;
 
-                dbg!("debugging call");
+                if let Err(e) = sent {
+                    log::timed_msg(
+                        format!("problem sending data to analyzer: {}", e),
+                        Utc::now(),
+                    );
+                    // TODO: do something with ltx because it has failed sending
+                    // - maybe it's closed
+                    // - maybe it's full
+                    // - maybe it errored? <- should avoid possibility
+                }
             });
 
             log::timed_msg(format!("client connected: {}", addr), Utc::now());

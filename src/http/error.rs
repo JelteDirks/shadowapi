@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt::Display;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum HttpError {
     BadFormat,
     UnknownVersion,
