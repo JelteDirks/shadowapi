@@ -1,6 +1,6 @@
 use crate::http::error::*;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum HttpVersion {
     Http10,
     Http11,
@@ -8,7 +8,7 @@ pub enum HttpVersion {
     Http3, /* TODO: maybe not support this? */
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum HttpMethod {
     Options,
     Get,
@@ -20,7 +20,7 @@ pub enum HttpMethod {
     Connect,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum HttpStatusCode {
     Ok200,
     Unknown,

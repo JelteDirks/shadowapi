@@ -24,6 +24,15 @@ impl From<Vec<u8>> for RawHttpResponse {
     }
 }
 
+impl Default for RawHttpResponse {
+    fn default() -> Self {
+        RawHttpResponse {
+            size: Default::default(),
+            bytes: Default::default(),
+        }
+    }
+}
+
 impl RawHttpResponse {
     pub fn decode(self) -> Result<DecodedHttpResponse, HttpError> {
         let next_sp = self.bytes.iter().position(|&byte| byte == 0x20);
@@ -41,5 +50,30 @@ impl RawHttpResponse {
         let status: HttpStatusCode = self.bytes[range].into();
 
         Ok(DecodedHttpResponse { version, status })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn with_msg() {
+        let payload = "HTTP/1.1 200 OK";
+        let raw: RawHttpResponse = RawHttpResponse::from(Vec::from(payload));
+        let actual = raw.decode().expect("decoding should work");
+
+        assert_eq!(actual.version, HttpVersion::Http11);
+        assert_eq!(actual.status, HttpStatusCode::Ok200);
+    }
+
+    #[test]
+    fn no_msg_response() {
+        let payload = "HTTP/1.1 200";
+        let raw: RawHttpResponse = RawHttpResponse::from(Vec::from(payload));
+        let actual = raw.decode().expect("decoding should work");
+
+        assert_eq!(actual.version, HttpVersion::Http11);
+        assert_eq!(actual.status, HttpStatusCode::Ok200);
     }
 }
