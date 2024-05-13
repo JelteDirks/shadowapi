@@ -69,6 +69,7 @@ fn main() -> Result<(), std::io::Error> {
                 } else {
                     // TODO: write the result somewhere?
                 }
+                dbg!(&main_parsed);
 
                 let shadow_parsed = shadow_response.decode();
                 if let Err(e) = main_parsed {
@@ -76,6 +77,7 @@ fn main() -> Result<(), std::io::Error> {
                 } else {
                     // TODO: write the result somewhere?
                 }
+                dbg!(&shadow_parsed);
 
                 if main_parsed.is_ok() && shadow_parsed.is_ok() {
                     // TODO: compare the results and store

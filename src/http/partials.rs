@@ -20,6 +20,21 @@ pub enum HttpMethod {
     Connect,
 }
 
+#[derive(Debug)]
+pub enum HttpStatusCode {
+    Ok200,
+    Unknown,
+}
+
+impl From<&[u8]> for HttpStatusCode {
+    fn from(value: &[u8]) -> Self {
+        match value {
+            [0x32, 0x30, 0x30] => HttpStatusCode::Ok200,
+            _ => Self::Unknown,
+        }
+    }
+}
+
 impl From<HttpMethod> for &str {
     fn from(value: HttpMethod) -> Self {
         match value {
