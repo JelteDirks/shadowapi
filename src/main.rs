@@ -215,27 +215,54 @@ where
     T: Into<String>,
 {
     let target = String::from(target.into());
-    let main_server = TcpStream::connect(target.clone()).await;
+    let server = TcpStream::connect(target.clone()).await;
 
-    if let Err(e) = main_server {
+    if let Err(e) = server {
         return Err(ServerError::Unresponsive(target, Box::new(e)));
     }
 
-    let mut main_server = main_server.unwrap();
+    let mut server = server.unwrap();
 
-    let res = main_server.write_all(request.bytes.as_slice()).await;
+    let res = server.write_all(request.bytes.as_slice()).await;
 
     if let Err(e) = res {
         return Err(ServerError::ServerWriteError(target, Box::new(e)));
     }
 
-    let mut response: Vec<_> = Vec::new();
+    // FIX: clean this shit up, dirty copy from client read.
+    const BUFSIZE: usize = 1500;
+    let mut localbuf = [0u8; BUFSIZE];
+    let mut response: Vec<_> = Vec::with_capacity(BUFSIZE);
+    loop {
+        server.readable().await.expect("stream should be readable"); // readable
 
-    let res = main_server.read_buf(&mut response).await;
+        match server.try_read(&mut localbuf) {
+            Ok(0) => {
+                log::timed_msg(format!("read 0 bytes, stop reading"), Utc::now());
+                break;
+            }
+            Ok(n) => {
+                log::timed_msg(format!("read {n} bytes from the client"), Utc::now());
+                response.extend_from_slice(&localbuf[0..n]);
+                if n < BUFSIZE {
+                    break;
+                }
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                continue;
+            }
+            Err(e) => {
+                log::timed_msg(format!("error reading tcp stream: {}", e), Utc::now());
+                break;
+            }
+        }
+    }
+
+    dbg!("done");
 
     if let Err(e) = res {
         return Err(ServerError::ServerReadError(target, Box::new(e)));
     }
 
-    return Ok(RawHttpResponse::from(response));
+    return Ok(RawHttpResponse::from(Vec::from(localbuf)));
 }
