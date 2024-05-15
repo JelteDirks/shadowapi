@@ -10,7 +10,7 @@ use chrono::Utc;
 
 use http::{error::ServerError, response::RawHttpResponse};
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
     runtime::Runtime,
 };
@@ -229,20 +229,19 @@ where
         return Err(ServerError::ServerWriteError(target, Box::new(e)));
     }
 
-    // FIX: clean this shit up, dirty copy from client read.
     const BUFSIZE: usize = 1500;
     let mut localbuf = [0u8; BUFSIZE];
     let mut response: Vec<_> = Vec::with_capacity(BUFSIZE);
     loop {
-        server.readable().await.expect("stream should be readable"); // readable
+        let readable = server.readable().await;
+
+        if let Err(e) = readable {
+            return Err(ServerError::ServerReadError(target, Box::new(e)));
+        }
 
         match server.try_read(&mut localbuf) {
-            Ok(0) => {
-                log::timed_msg(format!("read 0 bytes, stop reading"), Utc::now());
-                break;
-            }
+            Ok(0) => break,
             Ok(n) => {
-                log::timed_msg(format!("read {n} bytes from the client"), Utc::now());
                 response.extend_from_slice(&localbuf[0..n]);
                 if n < BUFSIZE {
                     break;
@@ -252,17 +251,14 @@ where
                 continue;
             }
             Err(e) => {
-                log::timed_msg(format!("error reading tcp stream: {}", e), Utc::now());
-                break;
+                return Err(ServerError::ServerReadError(target, Box::new(e)));
             }
         }
     }
-
-    dbg!("done");
 
     if let Err(e) = res {
         return Err(ServerError::ServerReadError(target, Box::new(e)));
     }
 
-    return Ok(RawHttpResponse::from(Vec::from(localbuf)));
+    return Ok(RawHttpResponse::from(response));
 }
