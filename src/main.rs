@@ -144,18 +144,18 @@ async fn handle_connection(
     // to do this now.
 
     loop {
-        client_stream
-            .readable()
-            .await
-            .expect("stream should be readable"); // readable
+        let readable = client_stream.readable().await;
+
+        if let Err(e) = readable {
+            return Err(ServerError::ServerReadError(
+                String::from("client"),
+                Box::new(e),
+            ));
+        }
 
         match client_stream.try_read(&mut localbuf) {
-            Ok(0) => {
-                log::timed_msg(format!("read 0 bytes, stop reading"), Utc::now());
-                break;
-            }
+            Ok(0) => break,
             Ok(n) => {
-                log::timed_msg(format!("read {n} bytes from the client"), Utc::now());
                 request.add_bytes(&localbuf[0..n], n);
                 if n < BUFSIZE {
                     break;
@@ -165,8 +165,10 @@ async fn handle_connection(
                 continue;
             }
             Err(e) => {
-                log::timed_msg(format!("error reading tcp stream: {}", e), Utc::now());
-                break;
+                return Err(ServerError::ServerReadError(
+                    String::from("client"),
+                    Box::new(e),
+                ));
             }
         }
     }
