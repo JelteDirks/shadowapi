@@ -108,15 +108,13 @@ fn main() -> Result<(), std::io::Error> {
 
                 let sent = ltx.send(result.unwrap()).await;
 
-                if let Err(e) = sent {
-                    log::timed_msg(
-                        format!("problem sending data to analyzer: {}", e),
-                        Utc::now(),
-                    );
-                    // TODO: do something with ltx because it has failed sending
-                    // - maybe it's closed
-                    // - maybe it's full
-                    // - maybe it errored? <- should avoid possibility
+                if let Err(_) = sent {
+                    log::timed_msg(format!("receiver dropped"), Utc::now());
+                    // NOTE: the send method can return SendError which holds
+                    // the T that was sent but failed. Send blocks if there
+                    // is no capacity, so the receiver has probably been
+                    // dropped. I don't think the I can restart the receiver in
+                    // an ergonomic way here.
                 }
             });
 
