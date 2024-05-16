@@ -106,13 +106,7 @@ fn main() -> Result<(), std::io::Error> {
                     return;
                 }
 
-                let (req, res) = result.unwrap();
-
-                // TODO: maybe investigate if this makes sure that there is
-                // a possibility to reduce the amount of bytes that might have
-                // be moved. I don't know if moving an entire struct incurs
-                // more overhead than just moving a box pointing to the struct
-                let sent = ltx.send((req, res)).await;
+                let sent = ltx.send(result.unwrap()).await;
 
                 if let Err(e) = sent {
                     log::timed_msg(
