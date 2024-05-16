@@ -132,9 +132,6 @@ async fn handle_connection(
     let mut localbuf = [0u8; BUFSIZE];
     let mut request = RawHttpRequest::default();
 
-    // FIX: I need to check when the request is ending, there is no nice way
-    // to do this now.
-
     loop {
         let readable = client_stream.readable().await;
 
@@ -150,6 +147,8 @@ async fn handle_connection(
             Ok(n) => {
                 request.add_bytes(&localbuf[0..n], n);
                 if n < BUFSIZE {
+                    // HACK: assume that last chunk of message was received
+                    // here. Not verified.
                     break;
                 }
             }
@@ -188,10 +187,8 @@ async fn handle_connection(
             .expect("expect client to be okay for now");
     }
 
-    let _ = client_stream.shutdown();
+    let _ = client_stream.shutdown().await;
     log::timed_msg(format!("handled client request"), Utc::now());
-
-    // NOTE: the fun part starts here
 
     // TODO: before the shadow server is called and handeled, maybe already
     // save some information about the request and response from main, maybe
@@ -208,7 +205,7 @@ async fn request_server<T>(
 where
     T: Into<String>,
 {
-    let target = String::from(target.into());
+    let target: String = target.into();
     let server = TcpStream::connect(target.clone()).await;
 
     if let Err(e) = server {
