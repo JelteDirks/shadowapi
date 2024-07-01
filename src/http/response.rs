@@ -1,6 +1,6 @@
 use super::{
     error::HttpError,
-    partials::{HttpStatusCode, HttpVersion},
+    partials::{HttpHeaderPair, HttpStatusCode, HttpVersion},
 };
 
 #[derive(Debug)]
@@ -33,6 +33,17 @@ impl Default for RawHttpResponse {
     }
 }
 
+impl Default for DecodedHttpResponse {
+    fn default() -> Self {
+        todo!();
+    }
+}
+
+pub fn decode_header() -> HttpHeaderPair {
+
+    todo!();
+}
+
 impl RawHttpResponse {
     pub fn decode(self) -> Result<DecodedHttpResponse, HttpError> {
         let next_sp = self.bytes.iter().position(|&byte| byte == 0x20);
@@ -48,6 +59,18 @@ impl RawHttpResponse {
         let version = version.unwrap();
         let range = next_sp + 1..next_sp + 4;
         let status: HttpStatusCode = self.bytes[range].into();
+
+        let cursor = next_sp + 4;
+
+        // TODO: decode headers
+        let next_lf = self.bytes[cursor..].iter().position(|&byte| byte == 0x0A);
+        let cursor = if let Some(n) = next_lf {
+            cursor + n + 1
+        } else {
+            return Ok(DecodedHttpResponse { version, status });
+        };
+
+        dbg!(String::from_utf8(self.bytes[cursor..].to_vec()).unwrap());
 
         Ok(DecodedHttpResponse { version, status })
     }

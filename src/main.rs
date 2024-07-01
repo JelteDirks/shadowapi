@@ -1,8 +1,14 @@
+#![allow(dead_code)]
+
 mod http;
 mod util;
 
 // NOTE: Maybe in the future, replace 'home made' logging with a crate that has
 // better configurable logging. Might be nice. Nice crate called 'tracing'.
+//
+// NOTE: it might be nice to configure the BUFSIZE when the user of the system
+// knows that incoming requests are always short/long and need less/more memory
+// to copy at once. Just for optimization.
 
 // https://httpwg.org/specs/rfc9112.html#message.format
 
