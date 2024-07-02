@@ -2,6 +2,7 @@ use crate::http::error::*;
 
 #[derive(Debug, PartialEq)]
 pub enum HttpHeader {
+    Accept,
     AcceptPatch,
     AcceptRanges,
     AccessControlAllowOrigin,

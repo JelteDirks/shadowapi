@@ -11,6 +11,7 @@ mod util;
 // to copy at once. Just for optimization.
 
 // https://httpwg.org/specs/rfc9112.html#message.format
+// https://datatracker.ietf.org/doc/html/rfc9110
 
 use chrono::Utc;
 
@@ -75,7 +76,6 @@ fn main() -> Result<(), std::io::Error> {
                 } else {
                     // TODO: write the result somewhere?
                 }
-                dbg!(&main_parsed);
 
                 let shadow_parsed = shadow_response.decode();
                 if let Err(e) = main_parsed {
@@ -83,7 +83,6 @@ fn main() -> Result<(), std::io::Error> {
                 } else {
                     // TODO: write the result somewhere?
                 }
-                dbg!(&shadow_parsed);
 
                 if main_parsed.is_ok() && shadow_parsed.is_ok() {
                     // TODO: compare the results and store

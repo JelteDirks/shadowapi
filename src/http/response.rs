@@ -1,6 +1,6 @@
 use super::{
     error::HttpError,
-    partials::{HttpHeaderPair, HttpStatusCode, HttpVersion},
+    partials::{HttpHeader, HttpHeaderPair, HttpStatusCode, HttpVersion},
 };
 
 #[derive(Debug)]
@@ -39,9 +39,132 @@ impl Default for DecodedHttpResponse {
     }
 }
 
-pub fn decode_header() -> HttpHeaderPair {
 
-    todo!();
+pub fn build_header_pair(buf: &[u8], l: usize, r: usize, h: HttpHeader) -> Option<HttpHeaderPair> {
+    let mut start: usize = l;
+    let mut end: usize = r;
+
+    for p in l..=r {
+        if (buf[p] as char).is_whitespace() {
+            start += 1;
+        } else { break; }
+    }
+
+    for p in r..=l {
+        if (buf[p] as char).is_whitespace() {
+            end -= 1;
+        } else { break; }
+    }
+
+    if start >= end {
+        return None;
+    }
+
+    return Some((h, String::from_utf8(buf[start..end].to_vec()).unwrap()));
+}
+
+pub fn len_match(buf: &[u8], s: usize, e: usize, offset: usize) -> bool {
+    return buf[s+offset] == b':' && e < s+offset;
+}
+
+// buf: ref to the raw bytes
+// s: start of the current header line
+// e: end of the current header line (points to the \n)
+pub fn decode_header(buf: &[u8], s: usize, e: usize) -> Option<HttpHeaderPair> {
+    // NOTE: end is including the position of \n, in http there are CRLF line
+    // endings which mean there is a \r before \n at position [end - 1].
+
+    println!("{:?}", build_header_pair(buf, s, e, HttpHeader::Tk));
+
+    match buf[s] {
+        b'A' => { /* A */
+            match buf[s + 1] {
+                b'g' => { /* Ag */
+                    if len_match(buf, s, e, 3) {
+                        return build_header_pair(buf, s + 4, e - 1, HttpHeader::Age);
+                    }
+                }
+                b'c' => { /* Ac */
+                    match buf[s + 4] {
+                        b'p' => { /* Ac[ce]p */
+                            if buf[s+6] == b':' {
+                                return build_header_pair(buf, s+7, e-1, HttpHeader::Accept);
+                            }
+                            match buf[s + 7] {
+                                b'P' => { /* Ac[ce]p[t-]P */
+                                    if buf[s+12] == b':' {
+                                        return build_header_pair(buf, s+8, e-1, HttpHeader::AcceptPatch);
+                                    }
+                                }
+                                b'R' => { /* Ac[ce]p[t-]R */
+                                    if buf[s+12] == b':' {
+                                        return build_header_pair(buf, s+8, e-1, HttpHeader::AcceptRanges);
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                        b's' => { /* Ac[ce]s */
+                            match buf[s+15] {
+                                b'A' => { /* Access-Control-A */
+                                    match buf[s+22] {
+                                        b'O' => { /* Access-Control-Allow-O */
+                                            if buf[s+27] == b':' && s+27 < e { // TODO: Add end checks to all ':' checks
+                                                return build_header_pair(buf, s+28, e-1, HttpHeader::AccessControlAllowOrigin);
+                                            }
+                                        }
+                                        b'C' => {
+                                            if buf[s+32] == b':'
+                                        } 
+                                        _ => {}
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+        }
+        b'C' => { /* C */
+            match buf[s + 1] {
+                b'o' => { /* Co */
+                    match buf[s + 3] {
+                        b't' => { /* Co[n]t */
+                            match buf[s + 8] {
+                                b'L' => { /* Co[n]t[ent-]L */
+                                    match buf[s + 9] {
+                                        b'e' => { /* Co[n]t[ent-]Le */
+                                            match buf[s + 14] {
+                                                b':' => { /* Co[n]t[ent-]Le[ngth]: */
+                                                    return build_header_pair(buf, s + 15, e - 1, HttpHeader::ContentLength);
+                                                }
+                                                _ => {
+                                                }
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                _ => {
+                                }
+                            }
+                        }
+                        _ => {
+                        }
+                    }
+                }
+                _ => {
+                }
+            }
+        }
+        _ => {
+        }
+    }
+
+    return None;
 }
 
 impl RawHttpResponse {
@@ -60,17 +183,31 @@ impl RawHttpResponse {
         let range = next_sp + 1..next_sp + 4;
         let status: HttpStatusCode = self.bytes[range].into();
 
-        let cursor = next_sp + 4;
-
-        // TODO: decode headers
-        let next_lf = self.bytes[cursor..].iter().position(|&byte| byte == 0x0A);
-        let cursor = if let Some(n) = next_lf {
-            cursor + n + 1
-        } else {
-            return Ok(DecodedHttpResponse { version, status });
+        let next_lf = match self.bytes[next_sp + 4..].iter().position(|&byte| byte == 0x0A) {
+            Some(n) => n,
+            None => {
+                return Ok(DecodedHttpResponse { version, status });
+            }
         };
 
-        dbg!(String::from_utf8(self.bytes[cursor..].to_vec()).unwrap());
+        // TODO: decode headers
+        let mut cursor = next_lf;
+        loop {
+            let next_lf = self.bytes[cursor..].iter().position(|&byte| byte == 0x0A);
+
+            if next_lf.is_none() {
+                break;
+            }
+
+            let line_length = next_lf.unwrap();
+
+            let header_pair = decode_header(&self.bytes, cursor, cursor + line_length);
+            if header_pair.is_some() {
+                println!("{:?}", header_pair);
+            }
+
+            cursor = cursor + line_length + 1;
+        }
 
         Ok(DecodedHttpResponse { version, status })
     }
