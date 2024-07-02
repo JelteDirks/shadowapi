@@ -74,13 +74,15 @@ fn main() -> Result<(), std::io::Error> {
                 if let Err(e) = main_parsed {
                     log::timed_msg(format!("error parsing main response: {}", e), Utc::now());
                 } else {
+                    dbg!(&main_parsed);
                     // TODO: write the result somewhere?
                 }
 
                 let shadow_parsed = shadow_response.decode();
-                if let Err(e) = main_parsed {
+                if let Err(e) = shadow_parsed {
                     log::timed_msg(format!("error parsing shadow response: {}", e), Utc::now());
                 } else {
+                    dbg!(&shadow_parsed);
                     // TODO: write the result somewhere?
                 }
 

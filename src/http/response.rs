@@ -14,6 +14,8 @@ pub struct RawHttpResponse {
 pub struct DecodedHttpResponse {
     pub version: HttpVersion,
     pub status: HttpStatusCode,
+    pub headers: Vec<HttpHeaderPair>,
+    pub content_length: Option<usize>,
 }
 
 impl From<Vec<u8>> for RawHttpResponse {
@@ -58,11 +60,13 @@ impl RawHttpResponse {
         let status: HttpStatusCode = self.bytes[range].into();
 
         let next_lf = match self.bytes[next_sp + 4..].iter().position(|&byte| byte == 0x0A) {
-            Some(n) => n,
+            Some(n) => next_sp + 4 + n,
             None => {
-                return Ok(DecodedHttpResponse { version, status });
+                return Ok(DecodedHttpResponse { version, status, headers: Vec::default(), content_length: Some(0)});
             }
         };
+
+        let mut headers: Vec<HttpHeaderPair> = Vec::with_capacity(10);
 
         // TODO: decode headers
         let mut cursor = next_lf;
@@ -75,15 +79,24 @@ impl RawHttpResponse {
 
             let line_length = next_lf.unwrap();
 
-            let header_pair = decode_header(&self.bytes, cursor, cursor + line_length);
-            if header_pair.is_some() {
-                println!("{:?}", header_pair);
+            if let Some(header_pair) = decode_header(&self.bytes, cursor, cursor + line_length) {
+                headers.push(header_pair);
             }
 
             cursor = cursor + line_length + 1;
         }
 
-        Ok(DecodedHttpResponse { version, status })
+        let mut content_length: Option<usize> = None;
+
+        headers.iter().for_each(|header_pair| {
+            if header_pair.0 == HttpHeader::ContentLength {
+                if let Ok(n) = header_pair.1.parse::<usize>() {
+                    content_length = Some(n);
+                }
+            }
+        });
+
+        Ok(DecodedHttpResponse { version, status, headers, content_length })
     }
 }
 
