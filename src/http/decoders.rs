@@ -53,6 +53,8 @@ pub fn decode_header(buf: &[u8], s: usize, e: usize) -> Option<HttpHeaderPair> {
     // NOTE: end is including the position of \n, in http there are CRLF line
     // endings which mean there is a \r before \n at position [end - 1].
 
+    //println!("==> {:?}", build_header_pair(buf, s, e, HttpHeader::Tk));
+
     match buf[s] {
         b'A' => { /* A */
             match buf[s + 1] {

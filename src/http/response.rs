@@ -68,7 +68,6 @@ impl RawHttpResponse {
 
         let mut headers: Vec<HttpHeaderPair> = Vec::with_capacity(10);
 
-        // TODO: decode headers
         let mut cursor = next_lf;
         loop {
             let next_lf = self.bytes[cursor..].iter().position(|&byte| byte == 0x0A);
