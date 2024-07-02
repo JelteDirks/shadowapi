@@ -291,6 +291,154 @@ pub fn decode_header(buf: &[u8], s: usize, e: usize) -> Option<HttpHeaderPair> {
                 _ => {}
             }
         }
+        b'P' => { /* P */
+            match (buf[s+1], buf[s+2]) {
+                (b'r', b'a') => { /* Pra */
+                    if len_match(buf,s,e,6) {
+                        return build_header_pair(buf, s+7, e-1, HttpHeader::Pragma);
+                    }
+                }
+                (b'r', b'o') => { /* Pro */
+                    if len_match(buf,s,e,18) {
+                        return build_header_pair(buf, s+19, e-1, HttpHeader::ProxyAuthenticate);
+                    }
+                }
+                _ => {}
+            }
+            match buf[s+1] {
+                b'u' => {
+                    if len_match(buf,s,e,15) {
+                        return build_header_pair(buf, s+16, e-1, HttpHeader::PublicKeyPins);
+                    }
+                }
+                _ => {}
+            }
+        }
+        b'R' => { /* R */
+            match buf[s+2] {
+                b't' => { /* Ret */
+                    if len_match(buf,s,e,11) {
+                        return build_header_pair(buf, s+12, e-1, HttpHeader::RetryAfter);
+                    }
+                }
+                b'f' => { /* Ref */
+                    if len_match(buf,s,e,7) {
+                        return build_header_pair(buf, s+8, e-1, HttpHeader::Refresh);
+                    }
+                }
+                _ => {}
+            }
+        }
+        b'S' => { /* S */
+            match buf[s+1] {
+                b'e' => { /* Se */
+                    match buf[s+2] {
+                        b'r' => { /* Ser */
+                            if len_match(buf,s,e,6) {
+                                return build_header_pair(buf, s+7, e-1, HttpHeader::Server);
+                            }
+                        }
+                        b't' => { /* Set */
+                            if len_match(buf,s,e,10) {
+                                return build_header_pair(buf, s+11, e-1, HttpHeader::SetCookie);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                b't' => { /* St */
+                    if len_match(buf,s,e,25) {
+                        return build_header_pair(buf, s+26, e-1, HttpHeader::StrictTransportSecurity);
+                    }
+                }
+                _ => {}
+            }
+        }
+        b'T' => { /* T */
+            match buf[s+1] {
+                b'r' => { /* Tr */
+                    match buf[s+3] {
+                        b'i' => { /* Trai */
+                            if len_match(buf,s,e,7) {
+                                return build_header_pair(buf, s+8, e-1, HttpHeader::Trailer);
+                            }
+                        }
+                        b'n' => { /* Tran */
+                            if len_match(buf,s,e,17) {
+                                return build_header_pair(buf, s+18, e-1, HttpHeader::TransferEncoding);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                b'k' => { /* Tk */
+                    if len_match(buf,s,e,2) {
+                        return build_header_pair(buf, s+3, e-1, HttpHeader::Tk);
+                    }
+                }
+                _ => {}
+            }
+        }
+        b'U' => { /* U */
+            if len_match(buf,s,e,7) {
+                return build_header_pair(buf, s+8, e-1, HttpHeader::Upgrade);
+            }
+        }
+        b'V' => { /* V */
+            match buf[s+1] {
+                b'a' => { /* Va */
+                    if len_match(buf,s,e,4) {
+                        return build_header_pair(buf, s+5, e-1, HttpHeader::Vary);
+                    }
+                }
+                b'i' => { /* Vi */
+                    if len_match(buf,s,e,3) {
+                        return build_header_pair(buf, s+4, e-1, HttpHeader::Via);
+                    }
+                }
+                _ => {}
+            }
+        }
+        b'W' => { /* W */
+            match buf[s+1] {
+                b'a' => { /* Wa */
+                    if len_match(buf,s,e,7) {
+                        return build_header_pair(buf, s+8, e-1, HttpHeader::Warning);
+                    }
+                }
+                b'W' => { /* WW */
+                    if len_match(buf,s,e,16) {
+                        return build_header_pair(buf, s+17, e-1, HttpHeader::WWWAuthenticate);
+                    }
+                }
+                _ => {}
+            }
+        }
+        b'X' => { /* X */
+            match buf[s+2] {
+                b'P' => { /* X-P */
+                    if len_match(buf,s,e,12) {
+                        return build_header_pair(buf, s+13, e-1, HttpHeader::XPoweredBy);
+                    }
+                }
+                b'R' => { /* X-R */
+                    if len_match(buf,s,e,12) {
+                        return build_header_pair(buf, s+13, e-1, HttpHeader::XRequestID);
+                    }
+                }
+                b'U' => { /* X-U */
+                    if len_match(buf,s,e,15) {
+                        return build_header_pair(buf, s+16, e-1, HttpHeader::XUACompatible);
+                    }
+                }
+                b'X' => { /* X-X */
+                    if len_match(buf,s,e,16) {
+                        return build_header_pair(buf, s+17, e-1, HttpHeader::XXSSProtection);
+                    }
+                }
+                _ => {}
+            }
+        }
         _ => {}
     }
 
