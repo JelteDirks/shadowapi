@@ -48,7 +48,7 @@ fn main() -> Result<(), std::io::Error> {
             let v = rx.recv().await;
 
             if let None = v {
-                log::timed_msg(format!("received None from channel"), Utc::now());
+                log::timed_msg("received None from channel", Utc::now());
                 continue;
             }
 
@@ -74,7 +74,6 @@ fn main() -> Result<(), std::io::Error> {
                 if let Err(e) = main_parsed {
                     log::timed_msg(format!("error parsing main response: {}", e), Utc::now());
                 } else {
-                    dbg!(&main_parsed);
                     // TODO: write the result somewhere?
                 }
 
@@ -82,7 +81,6 @@ fn main() -> Result<(), std::io::Error> {
                 if let Err(e) = shadow_parsed {
                     log::timed_msg(format!("error parsing shadow response: {}", e), Utc::now());
                 } else {
-                    dbg!(&shadow_parsed);
                     // TODO: write the result somewhere?
                 }
 
@@ -116,7 +114,7 @@ fn main() -> Result<(), std::io::Error> {
                 let sent = ltx.send(result.unwrap()).await;
 
                 if let Err(_) = sent {
-                    log::timed_msg(format!("receiver dropped"), Utc::now());
+                    log::timed_msg("receiver dropped", Utc::now());
                     // NOTE: the send method can return SendError which holds
                     // the T that was sent but failed. Send blocks if there
                     // is no capacity, so the receiver has probably been
@@ -195,7 +193,7 @@ async fn handle_connection(
     }
 
     let _ = client_stream.shutdown().await;
-    log::timed_msg(format!("handled client request"), Utc::now());
+    log::timed_msg("handled client request", Utc::now());
 
     // TODO: before the shadow server is called and handeled, maybe already
     // save some information about the request and response from main, maybe
