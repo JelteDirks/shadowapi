@@ -18,7 +18,7 @@ app.post('/file', async (req, res) => {
   if (req.headers) {
     process.stderr.write(JSON.stringify(req.headers) + "\n");
   }
-  res.send(Buffer.from('This is some binary data', 'utf-8'));
+  res.send(Buffer.from('This is some binary data\n', 'utf-8'));
 });
 
 app.post('/html', async (req, res) => {

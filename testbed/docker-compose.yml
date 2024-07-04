@@ -7,7 +7,9 @@ services:
     restart: always
     shm_size: 128mb
     environment:
-      POSTGRES_PASSWORD: example
+      POSTGRES_PASSWORD: dummypassword
+      POSTGRES_USER: shadowapi
+      POSTGRES_DB: shadowapi
 
   main-server:
     build:
