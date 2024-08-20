@@ -43,7 +43,10 @@ pub fn build_header_pair(buf: &[u8], l: usize, r: usize, h: HttpHeader) -> Optio
 // e: the end position of the current header (the next \n char)
 // offset: the offset that the ':' character should be expected (and checked)
 pub fn len_match(buf: &[u8], s: usize, e: usize, offset: usize) -> bool {
-    return buf[s+offset] == b':' && s+offset < e;
+    if s+offset < e {
+        return false;
+    }
+    return buf[s+offset] == b':';
 }
 
 // buf: ref to the raw bytes
@@ -52,6 +55,8 @@ pub fn len_match(buf: &[u8], s: usize, e: usize, offset: usize) -> bool {
 pub fn decode_header(buf: &[u8], s: usize, e: usize) -> Option<HttpHeaderPair> {
     // NOTE: end is including the position of \n, in http there are CRLF line
     // endings which mean there is a \r before \n at position [end - 1].
+
+    // TODO: byte array access can panic because length is not checked.
 
     //println!("==> {:?}", build_header_pair(buf, s, e, HttpHeader::Tk));
 

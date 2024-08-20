@@ -2,6 +2,19 @@ use std::error::Error;
 use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy)]
+pub enum ProxyError {
+    LogfilesIssue,
+}
+
+impl Display for ProxyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProxyError::LogfilesIssue => write!(f, "An issue arised with one or more of the log files"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum HttpError {
     BadFormat,
     UnknownVersion,

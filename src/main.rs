@@ -21,6 +21,7 @@ use tokio::{
     net::{TcpListener, TcpStream},
     runtime::Runtime,
 };
+use util::log::LoggingState;
 
 use crate::{http::request::RawHttpRequest, util::log};
 
@@ -32,14 +33,43 @@ fn main() -> Result<(), std::io::Error> {
     // TODO: configure the amount of main and comparison threads with external
     // configuration (JSON/cli/...)
     let main_rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(10) /* use 10 threads for handling connections */
+        .worker_threads(4) /* use 10 threads for handling connections */
         .enable_io()
         .build()?;
 
     let parsing_rt: Runtime = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
+        .worker_threads(1)
         .enable_io()
         .build()?;
+
+    let logging_rt: Runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_io()
+        .build()?;
+
+    let (logging_tx, mut logging_rx) = tokio::sync::mpsc::channel::<String>(1_000);
+
+    let mut logstate = match LoggingState::new(std::env::current_dir().unwrap()) {
+        Some(l) => l,
+        None => {
+            eprintln!("error creating log files");
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, "error creating log files"));
+        }
+    };
+
+    logging_rt.spawn(async move {
+        loop {
+            let msg = logging_rx.recv().await;
+
+            if let None = msg {
+                return;
+            } else {
+                logstate.main_info(msg.unwrap());
+            }
+        }
+    });
+
+    let main_log_sender = logging_tx.clone();
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<(RawHttpRequest, RawHttpResponse)>(1_000);
 
@@ -48,7 +78,7 @@ fn main() -> Result<(), std::io::Error> {
             let v = rx.recv().await;
 
             if let None = v {
-                log::timed_msg("received None from channel", Utc::now());
+                let _ = logging_tx.send(String::from("received None from channel")).await;
                 continue;
             }
 
@@ -91,6 +121,7 @@ fn main() -> Result<(), std::io::Error> {
         }
     });
 
+
     main_rt.block_on(async {
         let listener = TcpListener::bind(PROXY);
         let listener = listener.await.expect("proxy is not available");
@@ -102,6 +133,8 @@ fn main() -> Result<(), std::io::Error> {
                 .expect("could not accept incoming tcp stream");
 
             let ltx = tx.clone();
+
+            let connection_log_sender = main_log_sender.clone();
 
             main_rt.spawn(async move {
                 let result = handle_connection(tcpstream).await;
@@ -121,9 +154,11 @@ fn main() -> Result<(), std::io::Error> {
                     // dropped. I don't think the I can restart the receiver in
                     // an ergonomic way here.
                 }
+
+                let _ = connection_log_sender.send(format!("client handled: {}", addr)).await;
             });
 
-            log::timed_msg(format!("client connected: {}", addr), Utc::now());
+            let _ = main_log_sender.send(format!("client connected: {}", addr)).await;
         }
     });
 
@@ -193,7 +228,6 @@ async fn handle_connection(
     }
 
     let _ = client_stream.shutdown().await;
-    log::timed_msg("handled client request", Utc::now());
 
     // TODO: before the shadow server is called and handeled, maybe already
     // save some information about the request and response from main, maybe
