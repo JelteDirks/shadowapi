@@ -53,7 +53,9 @@ fn main() -> Result<(), std::io::Error> {
         Some(l) => l,
         None => {
             eprintln!("error creating log files");
-            return Err(std::io::Error::new(std::io::ErrorKind::Other, "error creating log files"));
+            return Err(std::io::Error::other(
+                "error creating log files",
+            ));
         }
     };
 
@@ -61,10 +63,9 @@ fn main() -> Result<(), std::io::Error> {
         loop {
             let msg = logging_rx.recv().await;
 
-            if let None = msg {
-                return;
-            } else {
-                logstate.main_info(msg.unwrap());
+            match msg.is_none() {
+                true => return,
+                false => logstate.main_info(msg.unwrap()),
             }
         }
     });
@@ -77,8 +78,10 @@ fn main() -> Result<(), std::io::Error> {
         loop {
             let v = rx.recv().await;
 
-            if let None = v {
-                let _ = logging_tx.send(String::from("received None from channel")).await;
+            if v.is_none() {
+                let _ = logging_tx
+                    .send(String::from("received None from channel"))
+                    .await;
                 continue;
             }
 
@@ -121,7 +124,6 @@ fn main() -> Result<(), std::io::Error> {
         }
     });
 
-
     main_rt.block_on(async {
         let listener = TcpListener::bind(PROXY);
         let listener = listener.await.expect("proxy is not available");
@@ -146,7 +148,7 @@ fn main() -> Result<(), std::io::Error> {
 
                 let sent = ltx.send(result.unwrap()).await;
 
-                if let Err(_) = sent {
+                if sent.is_err() {
                     log::timed_msg("receiver dropped", Utc::now());
                     // NOTE: the send method can return SendError which holds
                     // the T that was sent but failed. Send blocks if there
@@ -155,10 +157,14 @@ fn main() -> Result<(), std::io::Error> {
                     // an ergonomic way here.
                 }
 
-                let _ = connection_log_sender.send(format!("client handled: {}", addr)).await;
+                let _ = connection_log_sender
+                    .send(format!("client handled: {}", addr))
+                    .await;
             });
 
-            let _ = main_log_sender.send(format!("client connected: {}", addr)).await;
+            let _ = main_log_sender
+                .send(format!("client connected: {}", addr))
+                .await;
         }
     });
 
@@ -234,7 +240,7 @@ async fn handle_connection(
     // to a database or somewhere that can generate statistics and comparison
     // results later.
 
-    return Ok((request, main_response.unwrap()));
+    Ok((request, main_response.unwrap()))
 }
 
 async fn request_server<T>(
@@ -290,5 +296,5 @@ where
         return Err(ServerError::ServerReadError(target, Box::new(e)));
     }
 
-    return Ok(RawHttpResponse::from(response));
+    Ok(RawHttpResponse::from(response))
 }
