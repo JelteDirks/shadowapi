@@ -105,7 +105,7 @@ mod test {
         let mut rq: RawHttpRequest = RawHttpRequest::default();
         let payload =
             "GET /api HTTP/1.1\nHost: localhost:1234\nUser-Agent: curl/8.4.0\nAccept: */*\n\n";
-        let _ = rq.add_bytes(payload.as_bytes(), payload.len());
+        rq.add_bytes(payload.as_bytes(), payload.len());
         let rq = rq.decode().expect("should be decodable");
         let method: HttpMethod = rq.method;
         let asstr: &str = method.into();
@@ -117,7 +117,7 @@ mod test {
         let mut rq: RawHttpRequest = RawHttpRequest::default();
         let payload =
             "GET /api HTTP/1.1\nHost: localhost:1234\nUser-Agent: curl/8.4.0\nAccept: */*\n\n";
-        let _ = rq.add_bytes(payload.as_bytes(), payload.len());
+        rq.add_bytes(payload.as_bytes(), payload.len());
         let rq = rq.decode().expect("should be decodable");
         let version: HttpVersion = rq.version;
         let asstr: &str = version.into();
@@ -129,7 +129,7 @@ mod test {
         let mut rq: RawHttpRequest = RawHttpRequest::default();
         let payload =
             "GET /api HTTP/1.1\nHost: localhost:1234\nUser-Agent: curl/8.4.0\nAccept: */*\n\n";
-        let _ = rq.add_bytes(payload.as_bytes(), payload.len());
+        rq.add_bytes(payload.as_bytes(), payload.len());
         let rq = rq.decode().expect("should be decodable");
         assert_eq!(rq.target, "/api");
     }

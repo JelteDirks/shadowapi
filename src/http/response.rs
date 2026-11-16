@@ -5,6 +5,7 @@ use super::{
 };
 
 #[derive(Debug)]
+#[derive(Default)]
 pub struct RawHttpResponse {
     pub bytes: Vec<u8>,
     pub size: usize,
@@ -26,22 +27,6 @@ impl From<Vec<u8>> for RawHttpResponse {
         }
     }
 }
-
-impl Default for RawHttpResponse {
-    fn default() -> Self {
-        RawHttpResponse {
-            size: Default::default(),
-            bytes: Default::default(),
-        }
-    }
-}
-
-impl Default for DecodedHttpResponse {
-    fn default() -> Self {
-        todo!();
-    }
-}
-
 
 impl RawHttpResponse {
     pub fn decode(self) -> Result<DecodedHttpResponse, HttpError> {

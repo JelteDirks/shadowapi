@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+mod comparison;
 mod http;
 mod util;
 
@@ -53,9 +54,7 @@ fn main() -> Result<(), std::io::Error> {
         Some(l) => l,
         None => {
             eprintln!("error creating log files");
-            return Err(std::io::Error::other(
-                "error creating log files",
-            ));
+            return Err(std::io::Error::other("error creating log files"));
         }
     };
 
@@ -118,8 +117,10 @@ fn main() -> Result<(), std::io::Error> {
                 }
 
                 if main_parsed.is_ok() && shadow_parsed.is_ok() {
+                    //comparison::compare_results(main_parsed.unwrap(), shadow_parsed.unwrap());
                     // TODO: compare the results and store
                 }
+
             });
         }
     });

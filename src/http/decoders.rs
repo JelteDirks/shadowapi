@@ -20,6 +20,7 @@ pub fn build_header_pair(buf: &[u8], l: usize, r: usize, h: HttpHeader) -> Optio
         } else { break; }
     }
 
+
     for p in r..=l {
         if (buf[p] as char).is_whitespace() {
             end -= 1;
@@ -30,7 +31,7 @@ pub fn build_header_pair(buf: &[u8], l: usize, r: usize, h: HttpHeader) -> Optio
         return None;
     }
 
-    return Some((h, String::from_utf8(buf[start..end].to_vec()).unwrap()));
+    Some((h, String::from_utf8(buf[start..end].to_vec()).unwrap()))
 }
 
 // Checks if the length of a header is correctly set based on the expected offset and the position
@@ -46,7 +47,7 @@ pub fn len_match(buf: &[u8], s: usize, e: usize, offset: usize) -> bool {
     if s+offset < e {
         return false;
     }
-    return buf[s+offset] == b':';
+    buf[s+offset] == b':'
 }
 
 // buf: ref to the raw bytes
@@ -291,13 +292,8 @@ pub fn decode_header(buf: &[u8], s: usize, e: usize) -> Option<HttpHeaderPair> {
                 }
                 _ => {}
             }
-            match buf[s+1] {
-                b'u' => {
-                    if len_match(buf,s,e,15) {
-                        return build_header_pair(buf, s+16, e-1, HttpHeader::PublicKeyPins);
-                    }
-                }
-                _ => {}
+            if buf[s+1] == b'u' && len_match(buf,s,e,15) {
+                return build_header_pair(buf, s+16, e-1, HttpHeader::PublicKeyPins);
             }
         }
         b'R' => { /* R */
@@ -428,5 +424,5 @@ pub fn decode_header(buf: &[u8], s: usize, e: usize) -> Option<HttpHeaderPair> {
         _ => {}
     }
 
-    return None;
+    None
 }
